@@ -61,6 +61,23 @@ namespace TLALOCSG.Controllers
             return Ok("Usuario registrado correctamente.");
         }
 
+
+        [HttpPost("promote-to-admin")]
+        [AllowAnonymous] // ⚠️ Usa solo para pruebas, quita esto después
+        public async Task<IActionResult> PromoteToAdmin([FromBody] string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                return NotFound("Usuario no encontrado.");
+
+            if (!await _roleManager.RoleExistsAsync("Admin"))
+                await _roleManager.CreateAsync(new IdentityRole("Admin"));
+
+            await _userManager.AddToRoleAsync(user, "Admin");
+
+            return Ok("Usuario promovido a Admin.");
+        }
+
         /*──────────────────────── 2. Login ───────────────────────────*/
         [HttpPost("login")]
         [AllowAnonymous]
