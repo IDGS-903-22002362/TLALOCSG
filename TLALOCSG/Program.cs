@@ -4,61 +4,61 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using TLALOCSG.Data;          
-using TLALOCSG.Models;        // ← ApplicationUser / entidades
+using TLALOCSG.Data;
+using TLALOCSG.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 /*─────────────────────────────────────────────
-  1. Configuración básica y lectura de settings
+  Lectura de configuración
   ─────────────────────────────────────────────*/
-var jwtSection = builder.Configuration.GetSection("JWTSetting");
+var jwtCfg = builder.Configuration.GetSection("JWTSetting");
 var connectionString = builder.Configuration.GetConnectionString("cadenaSQL");
 
 /*─────────────────────────────────────────────
-  2. Registro de servicios  (DI container)
+  Servicios  (Dependency-Injection)
   ─────────────────────────────────────────────*/
 
-// 2.1 DbContext (SQL Server)
+// DbContext
 builder.Services.AddDbContext<IoTIrrigationDbContext>(opt =>
     opt.UseSqlServer(connectionString));
 
-// 2.2 ASP.NET Core Identity  (usuarios / roles)
+// Identity
 builder.Services
-    .AddIdentity<ApplicationUser, IdentityRole>()          // o IdentityRole<Guid>
+    .AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<IoTIrrigationDbContext>()
     .AddDefaultTokenProviders();
 
-// 2.3 Autenticación JWT-Bearer
+// Autenticación JWT
 builder.Services
-    .AddAuthentication(options =>
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opt =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.SaveToken = true;
-        options.RequireHttpsMetadata = false;            // ↔ en prod: true
-        options.TokenValidationParameters = new TokenValidationParameters
+        opt.SaveToken = true;
+        opt.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
-            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidAudience = jwtSection["ValidAudience"],
-            ValidIssuer = jwtSection["ValidIssuer"],
+            ValidIssuer = jwtCfg["ValidIssuer"],
+            ValidAudience = jwtCfg["ValidAudience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                                           Encoding.UTF8.GetBytes(
-                                               jwtSection["securityKey"]!))
+                Encoding.UTF8.GetBytes(jwtCfg["securityKey"]!))
         };
     });
 
-// 2.4 Controladores
+// CORS – una sola política para Angular dev
+builder.Services.AddCors(p => p.AddPolicy("Ng", policy =>
+    policy.WithOrigins("http://localhost:4200")
+          .AllowAnyHeader()
+          .AllowAnyMethod()
+          .AllowCredentials()));
+
+// Controllers
 builder.Services.AddControllers();
 
-// 2.5 Swagger + esquema de seguridad Bearer
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -66,14 +66,13 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "TLALOCSG API",
         Version = "v1",
-        Description = "API para el sistema de riego IoT - Backend ASP.NET Core"
+        Description = "Backend ASP.NET Core – Sistema de riego IoT"
     });
 
-    // Definición de seguridad
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Description = "Autorización JWT: Bearer {token}",
+        Description = "Bearer {token}",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
@@ -84,37 +83,30 @@ builder.Services.AddSwaggerGen(c =>
         {
             new OpenApiSecurityScheme
             {
-                Reference   = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id   = "Bearer"
-                },
-                Scheme = "oauth2",
-                Name   = "Bearer",
-                In     = ParameterLocation.Header
+                Reference = new OpenApiReference
+                { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             Array.Empty<string>()
         }
     });
 });
 
-// 2.6 (Opcional) CORS para tu app Angular en http://localhost:4200
-builder.Services.AddCors(opt =>
-{
-    opt.AddPolicy("AllowAngular",
-        policy => policy
-            .WithOrigins("http://localhost:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod());
-});
-
 /*─────────────────────────────────────────────
-  3. Construir la aplicación
+  Build y seeding de roles
   ─────────────────────────────────────────────*/
 var app = builder.Build();
 
+// Seed roles “Admin” y “Client”
+using (var scope = app.Services.CreateScope())
+{
+    var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var role in new[] { "Admin", "Client" })
+        if (!await roleMgr.RoleExistsAsync(role))
+            await roleMgr.CreateAsync(new IdentityRole(role));
+}
+
 /*─────────────────────────────────────────────
-  4. Middleware pipeline
+  Middleware pipeline
   ─────────────────────────────────────────────*/
 if (app.Environment.IsDevelopment())
 {
@@ -122,9 +114,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHsts();
 app.UseHttpsRedirection();
 
-app.UseCors("AllowAngular");   // si configuraste la política
+app.UseCors("Ng");
 
 app.UseAuthentication();
 app.UseAuthorization();

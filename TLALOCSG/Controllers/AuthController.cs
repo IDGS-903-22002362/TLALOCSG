@@ -39,7 +39,7 @@ public class AuthController : ControllerBase
     }
     //Obtener todos los usuarios + roles 
     [HttpGet("users")]
-    //[Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     public async Task<IEnumerable<UserWithRolesDto>> GetAllUsers()
     {
         // Traemos usuarios; luego consultamos roles uno a uno
