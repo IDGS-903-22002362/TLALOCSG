@@ -1,5 +1,9 @@
 ﻿namespace TLALOCSG.DTOs.Users;
-public record UserQueryDto(int Page = 1,
-                           int PageSize = 10,
-                           string? Role = null,
-                           bool? Active = null);
+public class UserQueryDto
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+    public bool? Active { get; set; }
+    public string? Role { get; set; }
+    public string? Search { get; set; }
+}

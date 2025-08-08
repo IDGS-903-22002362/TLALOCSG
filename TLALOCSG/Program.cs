@@ -6,32 +6,30 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using TLALOCSG.Data;
 using TLALOCSG.Models;
+using TLALOCSG.Services.Email;
 
 var builder = WebApplication.CreateBuilder(args);
 
-/*─────────────────────────────────────────────
-  Lectura de configuración
-  ─────────────────────────────────────────────*/
+/*──────────────── CONFIG ────────────────*/
 var jwtCfg = builder.Configuration.GetSection("JWTSetting");
 var connectionString = builder.Configuration.GetConnectionString("cadenaSQL");
 
-/*─────────────────────────────────────────────
-  Servicios  (Dependency-Injection)
-  ─────────────────────────────────────────────*/
-
-// DbContext
+/*──────────────── SERVICES ─────────────*/
 builder.Services.AddDbContext<IoTIrrigationDbContext>(opt =>
     opt.UseSqlServer(connectionString));
 
-// Identity
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<IoTIrrigationDbContext>()
     .AddDefaultTokenProviders();
 
-// Autenticación JWT
+/* Auth: JWT por defecto (evita esquema Cookie en APIs) */
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
     .AddJwtBearer(opt =>
     {
         opt.SaveToken = true;
@@ -46,19 +44,37 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtCfg["securityKey"]!))
         };
+        // Nunca redirijas en APIs; responde 401
+        opt.Events = new JwtBearerEvents
+        {
+            OnChallenge = ctx =>
+            {
+                ctx.HandleResponse();
+                ctx.Response.StatusCode = 401;
+                return Task.CompletedTask;
+            }
+        };
     });
 
-// CORS – una sola política para Angular dev
+/* Si Identity Cookie llegara a intervenir, evita redirects en API */
+builder.Services.ConfigureApplicationCookie(o =>
+{
+    o.Events.OnRedirectToLogin = ctx => { ctx.Response.StatusCode = 401; return Task.CompletedTask; };
+    o.Events.OnRedirectToAccessDenied = ctx => { ctx.Response.StatusCode = 403; return Task.CompletedTask; };
+});
+
 builder.Services.AddCors(p => p.AddPolicy("Ng", policy =>
     policy.WithOrigins("http://localhost:4200")
           .AllowAnyHeader()
           .AllowAnyMethod()
           .AllowCredentials()));
 
-// Controllers
 builder.Services.AddControllers();
 
-// Swagger
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SMTP"));
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+/* Swagger + Bearer */
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -72,7 +88,7 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Description = "Bearer {token}",
+        Description = "Use: Bearer {token}",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
@@ -91,12 +107,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-/*─────────────────────────────────────────────
-  Build y seeding de roles
-  ─────────────────────────────────────────────*/
+/*──────────────── APP BUILD ────────────*/
 var app = builder.Build();
 
-// Seed roles “Admin” y “Client”
+/* Seed de roles base */
 using (var scope = app.Services.CreateScope())
 {
     var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
@@ -105,16 +119,17 @@ using (var scope = app.Services.CreateScope())
             await roleMgr.CreateAsync(new IdentityRole(role));
 }
 
-/*─────────────────────────────────────────────
-  Middleware pipeline
-  ─────────────────────────────────────────────*/
+/*──────────────── PIPELINE ─────────────*/
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
-app.UseHsts();
 app.UseHttpsRedirection();
 
 app.UseCors("Ng");

@@ -8,6 +8,8 @@ using System.Security.Claims;
 using System.Text;
 using TLALOCSG.Data;
 using TLALOCSG.DTOs.Auth;
+using TLALOCSG.DTOs.Users;
+
 using TLALOCSG.Models;
 
 namespace TLALOCSG.Controllers;
@@ -39,7 +41,7 @@ public class AuthController : ControllerBase
     }
     //Obtener todos los usuarios + roles 
     [HttpGet("users")]
-    [Authorize(Roles = "Admin")]
+    //[Authorize(Roles = "Admin")]
     public async Task<IEnumerable<UserWithRolesDto>> GetAllUsers()
     {
         // Traemos usuarios; luego consultamos roles uno a uno
@@ -196,7 +198,7 @@ public class AuthController : ControllerBase
         };
     }
 
-    //Perfil 
+    // GET /api/auth/me
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<UserProfileDto>> Me()
@@ -210,9 +212,48 @@ public class AuthController : ControllerBase
             Id = user.Id,
             FullName = user.FullName,
             Email = user.Email!,
-            Roles = roles
+            Roles = roles,
+            PhoneNumber = user.PhoneNumber    // 👈
         };
     }
+
+    // PUT /api/auth/me  (editar nombre/teléfono)
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null) return NotFound();
+
+        user.FullName = dto.FullName;
+        user.PhoneNumber = dto.PhoneNumber;
+
+        var res = await _userManager.UpdateAsync(user);
+        if (!res.Succeeded) return StatusCode(500, res.Errors);
+
+        return NoContent();
+    }
+
+    // POST /api/auth/change-password
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null) return NotFound();
+
+        var res = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+        if (!res.Succeeded) return BadRequest(res.Errors); // devuelve errores de política/credencial
+
+        return NoContent();
+    }
+
 
     //Logout 
     [HttpPost("logout")]
@@ -225,6 +266,7 @@ public class AuthController : ControllerBase
         await _signInManager.SignOutAsync();
         return Ok("Sesión cerrada.");
     }
+
 
     //Helpers 
     private string BuildJwt(ApplicationUser user, IList<string> roles)
