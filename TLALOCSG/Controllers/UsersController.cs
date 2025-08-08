@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TLALOCSG.DTOs.Users;
+using TLALOCSG.DTOs.Common;
 
 using TLALOCSG.Data;
 using TLALOCSG.Models;
@@ -311,10 +312,4 @@ public class UsersController : ControllerBase
         return $"Tmp-{Guid.NewGuid():N}aA1!";
     }
 }
-public class PagedResult<T>
-{
-    public IEnumerable<T> Items { get; set; } = Enumerable.Empty<T>();
-    public int Total { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-}
+
