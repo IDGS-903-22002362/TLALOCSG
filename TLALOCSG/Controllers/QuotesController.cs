@@ -71,7 +71,7 @@ public class QuotesController : ControllerBase
                 QuoteId = quote.QuoteId,
                 ProductId = line.ProductId,
                 Quantity = line.Quantity,
-                UnitPrice = 0 // se fijará al aprobar
+                UnitPrice = product.BasePrice // ← Asigna precio directamente
             });
         }
 
