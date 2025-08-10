@@ -7,6 +7,9 @@ using Microsoft.OpenApi.Models;
 using TLALOCSG.Data;
 using TLALOCSG.Models;
 using TLALOCSG.Services.Email;
+using QuestPDF.Infrastructure;
+using TLALOCSG.Services.Quotes;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,7 @@ var connectionString = builder.Configuration.GetConnectionString("cadenaSQL");
 /*──────────────── SERVICES ─────────────*/
 builder.Services.AddDbContext<IoTIrrigationDbContext>(opt =>
     opt.UseSqlServer(connectionString));
+builder.Services.AddScoped<IQuotePricingService, QuotePricingService>();
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>()
@@ -129,6 +133,7 @@ else
 {
     app.UseHsts();
 }
+QuestPDF.Settings.License = LicenseType.Community;
 
 app.UseHttpsRedirection();
 

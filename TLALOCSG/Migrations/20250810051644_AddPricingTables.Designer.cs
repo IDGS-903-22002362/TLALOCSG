@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TLALOCSG.Data;
 
@@ -11,9 +12,11 @@ using TLALOCSG.Data;
 namespace TLALOCSG.Migrations
 {
     [DbContext(typeof(IoTIrrigationDbContext))]
-    partial class IoTIrrigationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250810051644_AddPricingTables")]
+    partial class AddPricingTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -820,28 +823,10 @@ namespace TLALOCSG.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("Fulfillment")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<decimal>("InstallBase")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
                     b.Property<DateTime>("QuoteDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(sysutcdatetime())");
-
-                    b.Property<decimal>("ShippingCost")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
-                    b.Property<string>("StateCode")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -852,19 +837,6 @@ namespace TLALOCSG.Migrations
 
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18, 4)");
-
-                    b.Property<decimal>("TotalProducts")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
-                    b.Property<decimal>("TransportCost")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ValidUntil")
                         .HasColumnType("datetime2");
@@ -988,54 +960,6 @@ namespace TLALOCSG.Migrations
                         },
                         new
                         {
-                            StateCode = "QRO",
-                            DistanceKm = 130,
-                            ShipPerKm = 6m,
-                            StateName = "Querétaro",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "AGS",
-                            DistanceKm = 180,
-                            ShipPerKm = 6m,
-                            StateName = "Aguascalientes",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "SLP",
-                            DistanceKm = 220,
-                            ShipPerKm = 6m,
-                            StateName = "San Luis Potosí",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "MIC",
-                            DistanceKm = 200,
-                            ShipPerKm = 6m,
-                            StateName = "Michoacán",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "ZAC",
-                            DistanceKm = 350,
-                            ShipPerKm = 6m,
-                            StateName = "Zacatecas",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "COL",
-                            DistanceKm = 470,
-                            ShipPerKm = 6m,
-                            StateName = "Colima",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
                             StateCode = "JAL",
                             DistanceKm = 280,
                             ShipPerKm = 6m,
@@ -1052,186 +976,10 @@ namespace TLALOCSG.Migrations
                         },
                         new
                         {
-                            StateCode = "MEX",
-                            DistanceKm = 280,
-                            ShipPerKm = 6m,
-                            StateName = "Estado de México",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "HGO",
-                            DistanceKm = 400,
-                            ShipPerKm = 6m,
-                            StateName = "Hidalgo",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "MOR",
-                            DistanceKm = 420,
-                            ShipPerKm = 6m,
-                            StateName = "Morelos",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "PUE",
-                            DistanceKm = 520,
-                            ShipPerKm = 6m,
-                            StateName = "Puebla",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "TLA",
-                            DistanceKm = 520,
-                            ShipPerKm = 6m,
-                            StateName = "Tlaxcala",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "NAY",
-                            DistanceKm = 460,
-                            ShipPerKm = 6m,
-                            StateName = "Nayarit",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "SIN",
-                            DistanceKm = 820,
-                            ShipPerKm = 6m,
-                            StateName = "Sinaloa",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "SON",
-                            DistanceKm = 1200,
-                            ShipPerKm = 6m,
-                            StateName = "Sonora",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "DUR",
-                            DistanceKm = 600,
-                            ShipPerKm = 6m,
-                            StateName = "Durango",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
                             StateCode = "NLE",
                             DistanceKm = 700,
                             ShipPerKm = 6m,
                             StateName = "Nuevo León",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "COA",
-                            DistanceKm = 800,
-                            ShipPerKm = 6m,
-                            StateName = "Coahuila",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "CHH",
-                            DistanceKm = 1160,
-                            ShipPerKm = 6m,
-                            StateName = "Chihuahua",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "TAM",
-                            DistanceKm = 800,
-                            ShipPerKm = 6m,
-                            StateName = "Tamaulipas",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "VER",
-                            DistanceKm = 650,
-                            ShipPerKm = 6m,
-                            StateName = "Veracruz",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "OAX",
-                            DistanceKm = 740,
-                            ShipPerKm = 6m,
-                            StateName = "Oaxaca",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "GRO",
-                            DistanceKm = 650,
-                            ShipPerKm = 6m,
-                            StateName = "Guerrero",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "TAB",
-                            DistanceKm = 1050,
-                            ShipPerKm = 6m,
-                            StateName = "Tabasco",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "CAM",
-                            DistanceKm = 1350,
-                            ShipPerKm = 6m,
-                            StateName = "Campeche",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "YUC",
-                            DistanceKm = 1550,
-                            ShipPerKm = 6m,
-                            StateName = "Yucatán",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "ROO",
-                            DistanceKm = 1800,
-                            ShipPerKm = 6m,
-                            StateName = "Quintana Roo",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "CHP",
-                            DistanceKm = 1100,
-                            ShipPerKm = 6m,
-                            StateName = "Chiapas",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "BCN",
-                            DistanceKm = 2300,
-                            ShipPerKm = 6m,
-                            StateName = "Baja California",
-                            TransportPerKm = 10m
-                        },
-                        new
-                        {
-                            StateCode = "BCS",
-                            DistanceKm = 1600,
-                            ShipPerKm = 6m,
-                            StateName = "Baja California Sur",
                             TransportPerKm = 10m
                         });
                 });

@@ -331,6 +331,13 @@ public class SupportController : ControllerBase
 
         return CreatedAtAction(nameof(GetMessages), new { id }, dtoOut);
     }
+    [HttpGet("states")]
+    [AllowAnonymous]
+    public async Task<IEnumerable<object>> GetStates([FromServices] IoTIrrigationDbContext ctx)
+    => await ctx.StateRates
+                .OrderBy(s => s.StateName)
+                .Select(s => new { s.StateCode, s.StateName })
+                .ToListAsync();
 
     // ─────────────── Helpers ───────────────
     private static TicketDto Map(Ticket t) => new(
