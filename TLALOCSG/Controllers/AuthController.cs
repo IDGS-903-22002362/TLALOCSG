@@ -264,7 +264,7 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId);
         await _userManager.RemoveAuthenticationTokenAsync(user, REFRESH_PROVIDER, REFRESH_NAME);
         await _signInManager.SignOutAsync();
-        return Ok("Sesión cerrada.");
+        return NoContent(); 
     }
 
 
