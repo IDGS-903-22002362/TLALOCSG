@@ -26,6 +26,7 @@ builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<IoTIrrigationDbContext>()
     .AddDefaultTokenProviders();
+builder.Services.AddMemoryCache();
 
 /* Auth: JWT por defecto (evita esquema Cookie en APIs) */
 builder.Services
