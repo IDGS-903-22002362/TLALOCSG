@@ -21,82 +21,82 @@ public class DashboardController : ControllerBase
         _cache = cache;
     }
 
-    // GET: /api/dashboard/admin?from=2025-01-01&to=2025-01-31&top=5&lowStockThreshold=5
     [HttpGet("admin")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<AdminDashboardDto>> GetAdmin(
-        [FromQuery] DateTime? from,
-        [FromQuery] DateTime? to,
-        [FromQuery] int top = 5,
-        [FromQuery] int lowStockThreshold = 5)
+    [FromQuery] DateTime? from,
+    [FromQuery] DateTime? to,
+    [FromQuery] int top = 5,
+    [FromQuery] int lowStockThreshold = 5)
     {
         var (start, end) = NormalizeRange(from, to);
 
-        // cache 30s para evitar golpear BD en refrescos
-        var cacheKey = $"dash_admin_{start:yyyyMMdd}_{end:yyyyMMdd}_top{top}_ls{lowStockThreshold}";
-        if (_cache.TryGetValue(cacheKey, out AdminDashboardDto? cached) && cached is not null)
-            return cached;
-
-        // Órdenes del rango (excluye Cancelled)
+        // Órdenes filtradas del rango (excluye Cancelled)
         var ordersQ = _ctx.Orders.AsNoTracking()
-            .Where(o => o.OrderDate >= start && o.OrderDate <= end && o.Status != "Cancelled");
+            .Where(o => o.OrderDate >= start &&
+                        o.OrderDate <= end &&
+                        o.Status != "Cancelled");
 
-        var salesRaw = await _ctx.Orders.AsNoTracking()
-    .Where(o => o.OrderDate >= start && o.OrderDate <= end && o.Status != "Cancelled")
-    .GroupBy(o => o.OrderDate.Date)
-    .Select(g => new { Date = g.Key, Value = g.Sum(x => x.TotalAmount) })
-    .OrderBy(x => x.Date)
-    .ToListAsync();
+        // Serie de ventas por día → proyecta anónimo y mapea a DTO después
+        var salesRaw = await ordersQ
+            .GroupBy(o => o.OrderDate.Date)
+            .Select(g => new { Date = g.Key, Value = g.Sum(x => x.TotalAmount) })
+            .OrderBy(x => x.Date)
+            .ToListAsync();
 
         var salesByDay = salesRaw.Select(x => new SeriesPointDto(x.Date, x.Value)).ToList();
-
-
-        var salesTotal = salesByDay.Sum(x => x.Value);
+        var salesTotal = salesRaw.Sum(x => x.Value);
         var ordersCount = await ordersQ.CountAsync();
 
-        // KPIs que no dependen del rango
+        // KPIs extra
         var pendingQuotes = await _ctx.Quotes.CountAsync(q => q.Status == "Draft");
         var openTickets = await _ctx.Tickets.CountAsync(t => t.Status != "Closed");
 
-        // Top productos por ventas en $ y unidades en el rango
-        var topProducts = await _ctx.OrderLines
-    .AsNoTracking()
-    .Where(l => l.Order.OrderDate >= start &&
-                l.Order.OrderDate <= end &&
-                l.Order.Status != "Cancelled")
-    // Proyección previa (con alias) para que EF lo traduzca bien
-    .Select(l => new
-    {
-        l.ProductId,
-        ProductName = l.Product != null ? l.Product.Name : "",   // alias y sin '!'
-        Qty = l.Quantity,
-        LineTotal = l.Quantity * l.UnitPrice
-    })
-    .GroupBy(x => new { x.ProductId, x.ProductName })
-    .Select(g => new TopProductDto(
-        g.Key.ProductId,
-        g.Key.ProductName,
-        g.Sum(x => x.Qty),
-        g.Sum(x => x.LineTotal)
-    ))
-    .OrderByDescending(x => x.Total)
-    .ThenByDescending(x => x.Units)
-    .Take(top)
-    .ToListAsync();
+        // Top productos: parte de Orders filtradas → SelectMany a OrderLines → GroupBy
+        var topProductsRaw = await _ctx.Orders.AsNoTracking()
+            .Where(o => o.OrderDate >= start &&
+                        o.OrderDate <= end &&
+                        o.Status != "Cancelled")
+            .SelectMany(o => o.OrderLines.Select(l => new
+            {
+                l.ProductId,
+                ProductName = l.Product != null ? l.Product.Name : "",
+                Qty = l.Quantity,
+                LineTotal = l.Quantity * l.UnitPrice
+            }))
+            .GroupBy(x => new { x.ProductId, x.ProductName })
+            .Select(g => new
+            {
+                g.Key.ProductId,
+                g.Key.ProductName,
+                Units = g.Sum(x => x.Qty),
+                Total = g.Sum(x => x.LineTotal)
+            })
+            .OrderByDescending(x => x.Total)
+            .ThenByDescending(x => x.Units)
+            .Take(top)
+            .ToListAsync();
 
-        // Bajo stock (sumatorio por MaterialId)
-        var lowStock = await _ctx.MaterialStocks
-            .AsNoTracking()
+        var topProducts = topProductsRaw
+            .Select(x => new TopProductDto(x.ProductId, x.ProductName, x.Units, x.Total))
+            .ToList();
+
+        // Bajo stock: suma por MaterialId y luego join a Materials; mapea tras ToListAsync
+        var lowStockRaw = await _ctx.MaterialStocks.AsNoTracking()
             .GroupBy(s => s.MaterialId)
-            .Select(g => new { g.Key, Qty = g.Sum(x => x.QuantityOnHand) })
-            .Where(x => x.Qty < lowStockThreshold)
+            .Select(g => new { MaterialId = g.Key, OnHand = g.Sum(x => x.QuantityOnHand) })
+            .Where(x => x.OnHand < lowStockThreshold)
             .Join(_ctx.Materials.AsNoTracking(),
-                s => s.Key, m => m.MaterialId,
-                (s, m) => new LowStockDto(m.MaterialId, m.Name, s.Qty))
+                  s => s.MaterialId, m => m.MaterialId,
+                  (s, m) => new { m.MaterialId, m.Name, s.OnHand })
             .OrderBy(x => x.OnHand)
             .ToListAsync();
 
-        var dto = new AdminDashboardDto
+        var lowStock = lowStockRaw
+            .Select(x => new LowStockDto(x.MaterialId, x.Name, x.OnHand))
+            .ToList();
+
+        return new AdminDashboardDto
         {
             Kpis = new KpiDto(
                 Sales: salesTotal,
@@ -109,10 +109,8 @@ public class DashboardController : ControllerBase
             TopProducts = topProducts,
             LowStock = lowStock
         };
-
-        _cache.Set(cacheKey, dto, TimeSpan.FromSeconds(30));
-        return dto;
     }
+
 
     // GET: /api/dashboard/me?from=&to=
     // GET /api/dashboard/me
