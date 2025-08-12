@@ -24,6 +24,7 @@ namespace TLALOCSG.Controllers
             var entradas = await (from p in _context.Purchases
                                   join pl in _context.PurchaseLines on p.PurchaseId equals pl.PurchaseId
                                   where pl.MaterialId == materialId
+                                        && p.Status.ToLower() == "pagada"
                                   select new
                                   {
                                       Fecha = p.PurchaseDate,
@@ -128,6 +129,22 @@ namespace TLALOCSG.Controllers
             }
 
             return Ok(resultado);
+        }
+
+        [HttpGet("basic")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetMaterialsBasic()
+        {
+            var materials = await _context.Materials
+                .Select(m => new
+                {
+                    m.MaterialId,
+                    m.Name
+                })
+                .OrderBy(m => m.Name)
+                .ToListAsync();
+
+            return Ok(materials);
         }
     }
 }

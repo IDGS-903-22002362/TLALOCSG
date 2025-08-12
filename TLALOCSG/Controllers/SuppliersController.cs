@@ -119,4 +119,24 @@ public class SuppliersController : ControllerBase
         return Ok(activeSuppliers);
     }
 
+    [HttpPatch("{id}/toggle-status")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ToggleSupplierStatus(int id)
+    {
+        var supplier = await _context.Suppliers.FindAsync(id);
+        if (supplier == null)
+            return NotFound("Proveedor no encontrado.");
+
+        supplier.IsActive = !supplier.IsActive;
+
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            supplier.SupplierId,
+            supplier.IsActive
+        });
+    }
+
 }

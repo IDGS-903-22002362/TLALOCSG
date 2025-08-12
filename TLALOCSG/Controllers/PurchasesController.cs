@@ -26,7 +26,8 @@ public class PurchasesController : ControllerBase
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
+
 
             // 1. Registrar movimiento de entrada
             var movimiento = new MaterialMovement
@@ -109,6 +110,133 @@ public class PurchasesController : ControllerBase
             await transaction.RollbackAsync();
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Admin")] // Opcional, según si quieres protegerlo
+    public async Task<IActionResult> GetPurchasesHistory()
+    {
+        var compras = await _context.Purchases
+            .Include(p => p.Supplier) // Para traer datos del proveedor
+            .OrderByDescending(p => p.PurchaseDate)
+            .Select(p => new
+            {
+                p.PurchaseId,
+                SupplierName = p.Supplier.Name,
+                p.PurchaseDate,
+                p.TotalAmount,
+                p.Status
+            })
+            .ToListAsync();
+
+        return Ok(compras);
+    }
+
+    [HttpGet("suppliers/basic")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetSuppliersBasic()
+    {
+        var suppliers = await _context.Suppliers
+            .Select(s => new { s.SupplierId, s.Name })
+            .ToListAsync();
+        return Ok(suppliers);
+    }
+
+    [HttpGet("materials/basic")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetMaterialsBasic()
+    {
+        var materials = await _context.Materials
+            .Select(m => new { m.MaterialId, m.Name })
+            .ToListAsync();
+        return Ok(materials);
+    }
+    [HttpPut("editar/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> EditarCompra(int id, [FromBody] CompraRequest request)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var compra = await _context.Purchases
+                .Include(p => p.PurchaseLines)
+                .FirstOrDefaultAsync(p => p.PurchaseId == id);
+
+            if (compra == null)
+                return NotFound(new { message = "Compra no encontrada" });
+
+            // Actualizar proveedor
+            compra.SupplierId = request.SupplierId;
+            compra.PurchaseDate = DateTime.Now;
+
+            // Actualizar línea de compra (solo tomaremos la primera línea asociada)
+            var linea = compra.PurchaseLines.FirstOrDefault();
+            if (linea != null)
+            {
+                linea.MaterialId = request.MaterialId;
+                linea.Quantity = request.Quantity;
+                linea.UnitCost = request.UnitCost;
+                linea.LineTotal = request.Quantity * request.UnitCost;
+            }
+
+            // Actualizar total
+            compra.TotalAmount = request.Quantity * request.UnitCost;
+
+            _context.Purchases.Update(compra);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return Ok(new { message = "Compra actualizada con éxito" });
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("cancelar/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CancelarCompra(int id)
+    {
+        var compra = await _context.Purchases.FindAsync(id);
+        if (compra == null)
+            return NotFound(new { message = "Compra no encontrada" });
+
+        compra.Status = "Cancelada";
+        _context.Purchases.Update(compra);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Compra cancelada con éxito" });
+    }
+    [HttpGet("{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetCompraById(int id)
+    {
+        var compra = await _context.Purchases
+            .Include(p => p.Supplier)
+            .Include(p => p.PurchaseLines)
+            .ThenInclude(pl => pl.Material)
+            .FirstOrDefaultAsync(p => p.PurchaseId == id);
+
+        if (compra == null)
+            return NotFound(new { message = "Compra no encontrada" });
+
+        var compraDto = new
+        {
+            compra.PurchaseId,
+            SupplierId = compra.SupplierId,
+            SupplierName = compra.Supplier.Name,
+            MaterialId = compra.PurchaseLines.FirstOrDefault()?.MaterialId,
+            MaterialName = compra.PurchaseLines.FirstOrDefault()?.Material?.Name,
+            Quantity = compra.PurchaseLines.FirstOrDefault()?.Quantity,
+            UnitCost = compra.PurchaseLines.FirstOrDefault()?.UnitCost,
+            TotalAmount = compra.TotalAmount,
+            PurchaseDate = compra.PurchaseDate
+        };
+
+        return Ok(compraDto);
     }
 
     public class CompraRequest
