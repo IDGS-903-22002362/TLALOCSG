@@ -81,8 +81,35 @@ namespace TLALOCSG.Controllers
             _context.Reviews.Add(review);
             await _context.SaveChangesAsync();
 
-            return Ok("Tu reseña ha sido enviada para revisión.");
+            return Ok(new { message = "Tu reseña ha sido enviada para revisión." });
         }
+
+        // GET: api/reviews/canReview?productId=123
+        [HttpGet("canReview")]
+        [Authorize(Roles = "Client, Admin")]
+        public async Task<ActionResult<CanReviewResponseDto>> CanReview([FromQuery] int productId)
+        {
+            var customerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // Verificar que el producto exista
+            var productExists = await _context.Products.AnyAsync(p => p.ProductId == productId);
+            if (!productExists)
+                return NotFound("El producto no existe.");
+
+            // Buscar el pedido entregado que contenga ese producto
+            var deliveredOrder = await _context.Orders
+                .Include(o => o.OrderLines)
+                .Where(o => o.CustomerId == customerId && o.Status == "Delivered")
+                .Where(o => o.OrderLines.Any(ol => ol.ProductId == productId))
+                .FirstOrDefaultAsync();
+
+            bool canReview = deliveredOrder != null;
+            string? orderId = canReview ? deliveredOrder!.OrderId.ToString() : null;
+
+            return Ok(new CanReviewResponseDto { CanReview = canReview, OrderId = orderId });
+        }
+
+
 
         //PUT: Aprobar la reseña
         [HttpPut("{id}/approve")]
@@ -115,6 +142,11 @@ namespace TLALOCSG.Controllers
             public string? Comment { get; set; }
             public DateTime CreatedAt { get; set; }
             public string CustomerName { get; set; } = default!;
+        }
+        public class CanReviewResponseDto
+        {
+            public bool CanReview { get; set; }
+            public string? OrderId { get; set; }
         }
     }
 }

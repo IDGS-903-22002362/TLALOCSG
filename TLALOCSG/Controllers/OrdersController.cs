@@ -18,7 +18,7 @@ namespace TLALOCSG.Controllers
             _context = context;
         }
 
-        // 1. POST /api/orders - Cliente crea orden desde carrito
+        // 1. POST /api/orders - Cliente crea orden desde carrito o cotización aprobada
         [HttpPost]
         [Authorize(Roles = "Client")]
         public async Task<IActionResult> CreateOrder([FromBody] OrderCreateDto dto)
@@ -27,6 +27,20 @@ namespace TLALOCSG.Controllers
 
             if (dto.Lines is null || dto.Lines.Count == 0)
                 return BadRequest("La orden debe contener al menos un producto.");
+
+            // Validar cotización si aplica
+            if (dto.QuoteId.HasValue)
+            {
+                var quote = await _context.Quotes.FindAsync(dto.QuoteId.Value);
+                if (quote == null)
+                    return BadRequest("Cotización no encontrada.");
+
+                if (quote.Status != "Approved")
+                    return BadRequest("La cotización no está aprobada.");
+
+                if (quote.ValidUntil < DateTime.UtcNow)
+                    return BadRequest("La cotización ha vencido.");
+            }
 
             // Validación de stock
             foreach (var line in dto.Lines)
@@ -79,6 +93,9 @@ namespace TLALOCSG.Controllers
                 }).ToList()
             };
 
+            if (dto.QuoteId.HasValue)
+                order.QuoteId = dto.QuoteId.Value;
+
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
 
@@ -113,12 +130,26 @@ namespace TLALOCSG.Controllers
             return Ok(orders);
         }
 
-        // 3. GET /api/orders - Admin ve todas las órdenes
+        // 3. GET /api/orders - Admin ve todas las órdenes con filtros opcionales
         [HttpGet]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetAllOrders()
+        public async Task<ActionResult<IEnumerable<OrderResponseDto>>> GetAllOrders(
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] string? status)
         {
-            var orders = await _context.Orders
+            var query = _context.Orders.AsQueryable();
+
+            if (from.HasValue)
+                query = query.Where(o => o.OrderDate >= from.Value);
+
+            if (to.HasValue)
+                query = query.Where(o => o.OrderDate <= to.Value);
+
+            if (!string.IsNullOrEmpty(status))
+                query = query.Where(o => o.Status == status);
+
+            var orders = await query
                 .OrderByDescending(o => o.OrderDate)
                 .Select(o => new OrderResponseDto
                 {
@@ -143,12 +174,27 @@ namespace TLALOCSG.Controllers
         [Authorize]
         public async Task<IActionResult> RegisterPayment(int id, [FromBody] PaymentDto dto)
         {
-            var order = await _context.Orders.FindAsync(id);
+            var order = await _context.Orders
+                .Include(o => o.OrderLines)
+                .FirstOrDefaultAsync(o => o.OrderId == id);
+
             if (order == null)
                 return NotFound("Orden no encontrada.");
 
+            // Si es cliente, validar que sea el dueño
+            if (User.IsInRole("Client"))
+            {
+                var customerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (order.CustomerId != customerId)
+                    return Forbid();
+            }
+
             if (order.Status != "Pending")
                 return BadRequest("La orden ya fue pagada o cancelada.");
+
+            var total = order.OrderLines.Sum(l => l.Quantity * l.UnitPrice);
+            if (dto.Amount < total)
+                return BadRequest("El pago no cubre el total de la orden.");
 
             var payment = new Payment
             {
@@ -171,7 +217,7 @@ namespace TLALOCSG.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] string newStatus)
         {
-            var validStatuses = new[] { "Pending", "Paid", "Shipped", "Cancelled" };
+            var validStatuses = new[] { "Pending", "Paid", "Shipped", "Cancelled", "Delivered" };
 
             if (!validStatuses.Contains(newStatus))
                 return BadRequest("Estado no válido.");
@@ -180,14 +226,19 @@ namespace TLALOCSG.Controllers
             if (order == null)
                 return NotFound("Orden no encontrada.");
 
+            if (newStatus == "Cancelled" && order.Status == "Shipped")
+                return BadRequest("No se puede cancelar una orden enviada.");
+
             order.Status = newStatus;
             await _context.SaveChangesAsync();
 
             return Ok($"Estado actualizado a {newStatus}.");
         }
+
         /*────────────────────────── DTOs ───────────────────────────────*/
         public class OrderCreateDto
         {
+            public int? QuoteId { get; set; }
             public List<OrderLineDto> Lines { get; set; } = new();
         }
 
