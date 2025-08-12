@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TLALOCSG.Data;
 
@@ -11,9 +12,11 @@ using TLALOCSG.Data;
 namespace TLALOCSG.Migrations
 {
     [DbContext(typeof(IoTIrrigationDbContext))]
-    partial class IoTIrrigationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250812105942_AddContactMessages")]
+    partial class AddContactMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
